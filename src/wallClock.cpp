@@ -19,6 +19,8 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "wallClock.h"
 #include "os.h"
 #include "profiler.h"
@@ -73,6 +75,17 @@ void WallClock::timerLoop() {
     struct pollfd fds = {_pipefd[0], POLLIN, 0};
     int timeout = _interval > 1000000 ? (int)(_interval / 1000000) : 1;
 
+    FILE *fd = fopen("/tmp/main_tid", "r");
+
+    if (fd == NULL) {
+        exit(102);
+    }
+
+    // TODO: saw a SIGSEGV on the scanf, need to either figure out why or change approach
+    int mainTid = 0;
+    fscanf(fd, "%d", &mainTid);
+    fclose(fd);
+
     while (poll(&fds, 1, timeout) == 0) {
         if (thread_list == NULL) {
             thread_list = OS::listThreads();
@@ -85,7 +98,7 @@ void WallClock::timerLoop() {
                 thread_list = NULL;
                 break;
             }
-            if (thread_id != self && (sample_idle_threads || OS::isThreadRunning(thread_id))) {
+            if (thread_id != self && (sample_idle_threads || OS::isThreadRunning(thread_id)) && thread_id == mainTid) {
                 OS::sendSignalToThread(thread_id, SIGPROF);
                 count++;
             }
